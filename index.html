@@ -1,1 +1,375 @@
 
+<!doctype html>
+<html lang="de">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="theme-color" content="#101b1c">
+	<title>Stillhaus</title>
+	<style>
+		@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+		:root { color-scheme: dark; --ink: #f3f2e9; --muted: #a8b5ad; --mint: #b8f36b; --rust: #f27b56; --panel: rgba(12, 22, 22, .82); }
+		* { box-sizing: border-box; }
+		html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+		body { background: #101b1c; color: var(--ink); font-family: Manrope, sans-serif; }
+		#game { position: fixed; inset: 0; }
+		#game canvas { display: block; width: 100%; height: 100%; }
+		.vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 48% 45%, transparent 34%, rgba(3, 9, 10, .3) 100%); }
+		.topbar { position: fixed; top: 22px; left: 26px; right: 26px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+		.brand { display: flex; gap: 12px; align-items: center; }
+		.brand-mark { width: 38px; height: 38px; border: 1px solid rgba(184,243,107,.6); color: var(--mint); display: grid; place-items: center; font-size: 19px; }
+		.brand-name { font-size: 14px; line-height: 1.15; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+		.brand-sub { color: var(--muted); font: 10px 'DM Mono', monospace; margin-top: 5px; letter-spacing: .12em; }
+		.hud { display: flex; gap: 8px; }
+		.hud-item { min-width: 102px; padding: 10px 13px; border: 1px solid rgba(224,239,220,.14); background: var(--panel); backdrop-filter: blur(12px); }
+		.hud-label { display: block; color: var(--muted); font: 9px 'DM Mono', monospace; letter-spacing: .13em; text-transform: uppercase; margin-bottom: 4px; }
+		.hud-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+		.keys { color: var(--mint); }
+		.stamina-track { width: 100%; height: 4px; margin-top: 6px; background: rgba(224,239,220,.18); }
+		.stamina-fill { width: 100%; height: 100%; background: var(--mint); transition: width .08s linear, background .15s; }
+		.stamina-fill.low { background: var(--rust); }
+		.objective { position: fixed; left: 26px; bottom: 24px; padding: 13px 16px; border-left: 2px solid var(--mint); background: var(--panel); backdrop-filter: blur(12px); min-width: 245px; }
+		.objective-label { color: var(--mint); font: 9px 'DM Mono', monospace; letter-spacing: .13em; text-transform: uppercase; }
+		.objective-text { font-size: 12px; margin-top: 5px; color: #e1e8dd; }
+		.controls { position: fixed; bottom: 26px; right: 26px; display: flex; align-items: center; gap: 7px; color: rgba(234,241,230,.78); font: 10px 'DM Mono', monospace; }
+		.keycap { border: 1px solid rgba(224,239,220,.25); padding: 6px 8px; background: rgba(12,22,22,.65); color: var(--ink); min-width: 25px; text-align: center; }
+		#prompt { position: fixed; left: 50%; bottom: 86px; transform: translateX(-50%); border: 1px solid rgba(184,243,107,.52); background: rgba(12,22,22,.88); padding: 10px 15px; color: var(--ink); font-size: 12px; opacity: 0; transition: opacity .18s; pointer-events: none; white-space: nowrap; }
+		#prompt.visible { opacity: 1; }
+		#message { position: fixed; top: 20%; left: 50%; transform: translate(-50%, -8px); padding: 10px 16px; color: var(--mint); background: rgba(12,22,22,.82); border: 1px solid rgba(184,243,107,.38); font: 11px 'DM Mono', monospace; letter-spacing: .04em; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+		#message.visible { opacity: 1; transform: translate(-50%, 0); }
+		#screen { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(4,10,10,.56); backdrop-filter: blur(5px); transition: opacity .35s; }
+		#screen.hidden { opacity: 0; pointer-events: none; }
+		.screen-panel { width: min(440px, calc(100vw - 36px)); padding: 30px; border: 1px solid rgba(232,242,222,.22); background: rgba(12,22,22,.93); box-shadow: 0 25px 90px #0008; }
+		.eyebrow { color: var(--mint); font: 10px 'DM Mono', monospace; letter-spacing: .18em; text-transform: uppercase; }
+		h1 { margin: 12px 0 10px; font-size: clamp(34px, 8vw, 50px); line-height: 1; letter-spacing: 0; }
+		.intro { max-width: 340px; color: #bdc9c0; font-size: 13px; line-height: 1.7; }
+		.start-row { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; gap: 12px; }
+		#start { border: 0; background: var(--mint); color: #142016; padding: 13px 18px; font: 800 11px Manrope, sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+		#start:hover { background: #d0ff8c; }
+		.hint { color: #87958b; font: 9px 'DM Mono', monospace; text-align: right; line-height: 1.6; }
+		@media (max-width: 600px) {
+			.topbar { top: 12px; left: 12px; right: 12px; gap: 8px; }
+			.brand { gap: 8px; }
+			.brand-mark { width: 31px; height: 31px; }
+			.brand-name { font-size: 11px; }
+			.brand-sub { font-size: 8px; }
+			.hud { gap: 5px; }
+			.hud-item { min-width: 66px; padding: 8px 8px; }
+			.hud-label { font-size: 8px; }
+			.hud-value { font-size: 13px; }
+			.objective { left: 12px; bottom: 14px; min-width: 0; padding: 10px 12px; }
+			.objective-text { font-size: 10px; }
+			.controls { right: 12px; bottom: 18px; max-width: 45%; flex-wrap: wrap; justify-content: flex-end; gap: 4px; font-size: 8px; }
+			.keycap { padding: 4px 5px; min-width: 20px; }
+			#prompt { bottom: 75px; font-size: 10px; }
+		}
+	</style>
+	<script type="importmap">
+		{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}
+	</script>
+</head>
+<body>
+	<div id="game" aria-label="3D-Spielkarte"></div>
+	<div class="vignette"></div>
+	<header class="topbar">
+		<div class="brand"><div class="brand-mark">✳</div><div><div class="brand-name">Stillhaus</div><div class="brand-sub">NACHTWACHE / 01</div></div></div>
+		<div class="hud">
+			<div class="hud-item"><span class="hud-label">Schlüssel</span><span class="hud-value keys" id="key-count">0 / 5</span></div>
+			<div class="hud-item"><span class="hud-label">Zeit</span><span class="hud-value" id="timer">02:30</span></div>
+			<div class="hud-item"><span class="hud-label">Ausdauer</span><span class="hud-value" id="stamina-value">5,0 s</span><div class="stamina-track"><div class="stamina-fill" id="stamina-fill"></div></div></div>
+		</div>
+	</header>
+	<div class="objective"><div class="objective-label">Dein Ziel</div><div class="objective-text" id="objective">Finde 5 Schlüssel und erreiche den Ausgang.</div></div>
+	<div class="controls"><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span><span>laufen</span><span class="keycap">Shift</span><span>sprinten</span><span>Maus umsehen</span><span class="keycap">Ü</span><span>Maus freigeben</span><span class="keycap">E</span><span>verstecken</span></div>
+	<div id="prompt"></div><div id="message"></div>
+	<div id="screen"><div class="screen-panel"><div class="eyebrow">Ein Versteckspiel in 3D</div><h1 id="screen-title">Das Haus<br>hört mit.</h1><div class="intro" id="screen-copy">Der Geist ist unterwegs. Sammle fünf Schlüssel, finde den Ausgang und verstecke dich in Schränken, wenn er zu nahe kommt.</div><div class="start-row"><button id="start">Nacht beginnen</button><div class="hint">WASD / PFEILE<br>E ZUM VERSTECKEN</div></div></div></div>
+	<script type="module">
+		import * as THREE from 'three';
+
+		const host = document.querySelector('#game');
+		const scene = new THREE.Scene();
+		scene.background = new THREE.Color('#142020');
+		scene.fog = new THREE.FogExp2('#142020', 0.022);
+		const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 120);
+		const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+		renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+		renderer.setSize(innerWidth, innerHeight);
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		renderer.toneMapping = THREE.ACESFilmicToneMapping;
+		renderer.toneMappingExposure = 1.15;
+		host.appendChild(renderer.domElement);
+
+		scene.add(new THREE.HemisphereLight('#d6e5ce', '#263538', 2.05));
+		const moon = new THREE.DirectionalLight('#d7e5c8', 2.6);
+		moon.position.set(-9, 15, 7);
+		moon.castShadow = true;
+		moon.shadow.mapSize.set(1024, 1024);
+		moon.shadow.camera.left = -16; moon.shadow.camera.right = 16;
+		moon.shadow.camera.top = 16; moon.shadow.camera.bottom = -16;
+		scene.add(moon);
+
+		const mats = {
+			floor: new THREE.MeshStandardMaterial({ color: '#45554a', roughness: .92 }),
+			rug: new THREE.MeshStandardMaterial({ color: '#78634b', roughness: 1 }),
+			wall: new THREE.MeshStandardMaterial({ color: '#8a8b76', roughness: .92 }),
+			trim: new THREE.MeshStandardMaterial({ color: '#424c42', roughness: .8 }),
+			wood: new THREE.MeshStandardMaterial({ color: '#725239', roughness: .84 }),
+			darkWood: new THREE.MeshStandardMaterial({ color: '#45382c', roughness: .9 }),
+			metal: new THREE.MeshStandardMaterial({ color: '#9a986f', metalness: .55, roughness: .35 }),
+			green: new THREE.MeshStandardMaterial({ color: '#71835e', roughness: 1 }),
+			player: new THREE.MeshStandardMaterial({ color: '#d1e6a0', roughness: .55 }),
+			ghost: new THREE.MeshStandardMaterial({ color: '#d9fff0', emissive: '#69d6b4', emissiveIntensity: 1.35, transparent: true, opacity: .88, roughness: .18 }),
+			eye: new THREE.MeshBasicMaterial({ color: '#10211e' }),
+			key: new THREE.MeshStandardMaterial({ color: '#d8cf75', emissive: '#b49338', emissiveIntensity: .65, metalness: .7, roughness: .24 }),
+		};
+		function box(x, y, z, w, h, d, material, opts = {}) {
+			const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+			mesh.position.set(x, y, z); mesh.castShadow = opts.cast !== false; mesh.receiveShadow = true;
+			scene.add(mesh);
+			if (opts.solid) solids.push({ x, z, w, d });
+			return mesh;
+		}
+		const solids = [];
+		const floor = new THREE.Mesh(new THREE.PlaneGeometry(39, 33), mats.floor);
+		floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+		const grid = new THREE.GridHelper(39, 39, '#74816b', '#74816b');
+		grid.position.y = .012; grid.material.transparent = true; grid.material.opacity = .13; scene.add(grid);
+		// Low room walls leave the whole house visible from the play camera.
+		box(0, .65, -16, 37, 1.3, .45, mats.wall, { solid: true });
+		box(0, .65, 16, 37, 1.3, .45, mats.wall, { solid: true });
+		box(-18.5, .65, 0, .45, 1.3, 32, mats.wall, { solid: true });
+		box(18.5, .65, 0, .45, 1.3, 32, mats.wall, { solid: true });
+		// Interior partitions make small rooms, with clear doorways between them.
+		box(-5, .58, -5.1, .34, 1.16, 7.8, mats.wall, { solid: true });
+		box(4.1, .58, -5.1, .34, 1.16, 7.8, mats.wall, { solid: true });
+		box(-.45, .58, -2.1, 8.8, 1.16, .34, mats.wall, { solid: true });
+		box(-.8, .58, 4.1, 8.1, 1.16, .34, mats.wall, { solid: true });
+		box(7.4, .58, 3.15, 9.4, 1.16, .34, mats.wall, { solid: true });
+		box(1.2, .58, 7.5, 10.5, 1.16, .34, mats.wall, { solid: true });
+		box(-15, .58, 10.5, 5.5, 1.16, .34, mats.wall, { solid: true });
+		box(13.8, .58, 10.5, 6.8, 1.16, .34, mats.wall, { solid: true });
+		box(-1.4, .58, -12.2, 5.8, 1.16, .34, mats.wall, { solid: true });
+		box(2.5, .58, -10.1, .34, 1.16, 4.2, mats.wall, { solid: true });
+		box(-1.2, .58, -8.1, 4.2, 1.16, .34, mats.wall, { solid: true });
+		box(-3, .58, -5.7, .34, 1.16, 4.2, mats.wall, { solid: true });
+		// Furniture and room details.
+		box(-8.2, .12, -7.6, 4.3, .22, 3.6, mats.rug, { cast: false });
+		box(-8.25, .48, -7.9, 3.2, .72, 1.45, mats.wood, { solid: true });
+		box(-8.25, .88, -7.9, 3.32, .12, 1.55, mats.darkWood);
+		box(-9.7, .3, -4.0, 1.25, .6, 1.1, mats.green, { solid: true });
+		box(-1.8, .46, -7.5, 1.45, .92, 1.15, mats.darkWood, { solid: true });
+		box(8.4, .36, -7.3, 2.8, .72, 1.25, mats.wood, { solid: true });
+		box(8.4, .77, -7.3, 2.88, .1, 1.3, mats.darkWood);
+		box(-8.4, .42, 7.7, 2.4, .84, 1.35, mats.green, { solid: true });
+		box(-1.0, .4, 7.75, 2.2, .8, 1.25, mats.wood, { solid: true });
+		box(8.9, .3, 7.6, 1.15, .6, 1.15, mats.darkWood, { solid: true });
+		box(-14, .48, -8.2, 1.8, .9, .72, mats.darkWood, { solid: true });
+		box(-14, .98, -8.2, 1.9, .12, .8, mats.wood);
+		box(13.6, .32, -7.4, 1.15, .64, 1.05, mats.wood, { solid: true });
+		box(13.6, .67, -7.4, 1.25, .08, 1.12, mats.darkWood);
+		const frameMaterial = new THREE.MeshStandardMaterial({ color: '#342f27', roughness: .8 });
+		const artMaterial = new THREE.MeshStandardMaterial({ color: '#b87950', roughness: .75 });
+		box(-4.77, .78, -7.1, .08, .52, .76, frameMaterial);
+		box(-4.71, .78, -7.1, .035, .38, .6, artMaterial);
+		box(-4.77, .78, -4.8, .08, .52, .76, frameMaterial);
+		box(-4.71, .78, -4.8, .035, .38, .6, new THREE.MeshStandardMaterial({ color: '#829276', roughness: .75 }));
+		// Small lamps mark the rooms without hiding the floor plan.
+		const lamp = new THREE.PointLight('#e6c27a', 14, 8, 2);
+		lamp.position.set(-8, 2.2, -6.4); scene.add(lamp);
+		const lamp2 = new THREE.PointLight('#80bca0', 10, 7, 2);
+		lamp2.position.set(8.5, 2.1, 5.4); scene.add(lamp2);
+
+		const hideSpots = [
+			{ x: -10.15, z: 1.5, name: 'Garderobe' },
+			{ x: 9.2, z: -2.1, name: 'Wandschrank' },
+			{ x: 5.5, z: 8.55, name: 'Vorratsschrank' },
+		];
+		for (const spot of hideSpots) {
+			box(spot.x, .86, spot.z, 1.05, 1.72, .68, mats.darkWood);
+			box(spot.x, .86, spot.z + .36, .94, 1.58, .06, mats.wood);
+			box(spot.x + .28, .84, spot.z + .42, .045, .16, .045, mats.metal);
+			spot.mesh = new THREE.Group();
+			spot.mesh.position.set(spot.x, .03, spot.z - .6);
+			const ring = new THREE.Mesh(new THREE.TorusGeometry(.34, .025, 6, 28), new THREE.MeshBasicMaterial({ color: '#b8f36b', transparent: true, opacity: .6 }));
+			ring.rotation.x = -Math.PI / 2; spot.mesh.add(ring); scene.add(spot.mesh);
+		}
+
+		const exit = { x: 10.1, z: 9.1 };
+		const exitPad = new THREE.Mesh(new THREE.BoxGeometry(1.3, .08, 1.2), new THREE.MeshStandardMaterial({ color: '#5e7962', emissive: '#35523b', emissiveIntensity: .55 }));
+		exitPad.position.set(exit.x, .05, exit.z); scene.add(exitPad);
+		const exitSign = new THREE.Mesh(new THREE.BoxGeometry(.8, .48, .08), mats.trim);
+		exitSign.position.set(10.1, 1.65, 10.12); scene.add(exitSign);
+		const exitLabel = new THREE.Mesh(new THREE.BoxGeometry(.48, .06, .09), new THREE.MeshBasicMaterial({ color: '#b8f36b' }));
+		exitLabel.position.set(10.1, 1.69, 10.06); scene.add(exitLabel);
+
+		const keys = [
+			{ x: -8.1, z: -3.35 },
+			{ x: 7.6, z: -4.1 },
+			{ x: -2.6, z: 6.1 },
+			{ x: -15, z: -12.5 },
+			{ x: 15, z: 12.5 },
+		];
+		const keyMeshes = keys.map((pos) => {
+			const group = new THREE.Group(); group.position.set(pos.x, .48, pos.z);
+			const ring = new THREE.Mesh(new THREE.TorusGeometry(.17, .045, 8, 18), mats.key); group.add(ring);
+			const stem = new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .3, 8), mats.key); stem.rotation.z = Math.PI / 2; stem.position.x = .23; group.add(stem);
+			const tooth = new THREE.Mesh(new THREE.BoxGeometry(.08, .13, .07), mats.key); tooth.position.set(.3, -.1, 0); group.add(tooth);
+			scene.add(group); return group;
+		});
+
+		function makePerson() {
+			const group = new THREE.Group();
+			const body = new THREE.Mesh(new THREE.CapsuleGeometry(.26, .47, 4, 8), mats.player);
+			body.position.y = .52; body.castShadow = true; group.add(body);
+			const head = new THREE.Mesh(new THREE.SphereGeometry(.23, 16, 12), new THREE.MeshStandardMaterial({ color: '#e9d6b8', roughness: .65 }));
+			head.position.y = .98; head.castShadow = true; group.add(head);
+			const hood = new THREE.Mesh(new THREE.SphereGeometry(.245, 16, 12, 0, Math.PI * 2, 0, Math.PI * .58), new THREE.MeshStandardMaterial({ color: '#596e5a', roughness: .8 }));
+			hood.position.y = 1.02; hood.castShadow = true; group.add(hood);
+			return group;
+		}
+		const player = makePerson(); player.position.set(-9, 0, 8.8); player.rotation.y = Math.PI; player.visible = false; scene.add(player);
+		const ghost = new THREE.Group();
+		const ghostBody = new THREE.Mesh(new THREE.SphereGeometry(.58, 20, 16), mats.ghost);
+		ghostBody.scale.set(.85, 1.18, .8); ghostBody.position.y = .86; ghostBody.castShadow = true; ghost.add(ghostBody);
+		const ghostTail = new THREE.Mesh(new THREE.ConeGeometry(.44, .9, 16), mats.ghost);
+		ghostTail.position.y = .25; ghostTail.rotation.x = Math.PI; ghost.add(ghostTail);
+		for (const x of [-.2, .2]) {
+			const eye = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 8), mats.eye); eye.position.set(x, .98, .43); ghost.add(eye);
+		}
+		ghost.position.set(0, 0, -8); scene.add(ghost);
+
+		const ui = {
+			screen: document.querySelector('#screen'), start: document.querySelector('#start'),
+			screenTitle: document.querySelector('#screen-title'), screenCopy: document.querySelector('#screen-copy'),
+			prompt: document.querySelector('#prompt'), message: document.querySelector('#message'),
+			objective: document.querySelector('#objective'), keys: document.querySelector('#key-count'), timer: document.querySelector('#timer'),
+			staminaValue: document.querySelector('#stamina-value'), staminaFill: document.querySelector('#stamina-fill'),
+		};
+		const pressed = new Set();
+		let running = false, hidden = false, collected = 0, elapsed = 0, caught = false, nearbySpot = null, noticeTimeout;
+		const maxStamina = 5;
+		let stamina = maxStamina, staminaRecovery = 0;
+		let viewYaw = Math.PI, viewPitch = 0;
+		const lookSensitivity = .0024;
+		const playerRadius = .34;
+		function collides(x, z) {
+			return solids.some((s) => Math.abs(x - s.x) < s.w / 2 + playerRadius && Math.abs(z - s.z) < s.d / 2 + playerRadius);
+		}
+		function say(text) {
+			ui.message.textContent = text; ui.message.classList.add('visible');
+			clearTimeout(noticeTimeout); noticeTimeout = setTimeout(() => ui.message.classList.remove('visible'), 1650);
+		}
+		function finish(won) {
+			running = false; hidden = false;
+			ui.screenTitle.innerHTML = won ? 'Du bist<br>draußen.' : 'Er hat dich<br>gefunden.';
+			ui.screenCopy.textContent = won ? 'Der Morgen kann kommen. Du hast alle Schlüssel gefunden und das Haus verlassen.' : 'Der Geist war schneller. Atme kurz durch und versuche es noch einmal.';
+			ui.start.textContent = 'Nochmal spielen'; ui.screen.classList.remove('hidden');
+		}
+		function reset() {
+			running = true; hidden = false; collected = 0; elapsed = 0; caught = false;
+			stamina = maxStamina; staminaRecovery = 0;
+			player.position.set(-9, 0, 8.8); player.rotation.y = Math.PI;
+			viewYaw = Math.PI; viewPitch = 0;
+			ghost.position.set(0, 0, -8);
+			keyMeshes.forEach((mesh) => { mesh.visible = true; });
+			ui.keys.textContent = '0 / 5'; ui.timer.textContent = '02:30';
+			ui.staminaValue.textContent = '5,0 s'; ui.staminaFill.style.width = '100%'; ui.staminaFill.classList.remove('low');
+			ui.objective.textContent = 'Finde 5 Schlüssel und erreiche den Ausgang.';
+			ui.screen.classList.add('hidden');
+		}
+		ui.start.addEventListener('click', reset);
+		host.addEventListener('click', () => {
+			if (running && document.pointerLockElement !== host) host.requestPointerLock();
+		});
+		document.addEventListener('mousemove', (event) => {
+			if (!running || document.pointerLockElement !== host) return;
+			viewYaw -= event.movementX * lookSensitivity;
+			viewPitch = THREE.MathUtils.clamp(viewPitch - event.movementY * lookSensitivity, -1.1, 1.1);
+		});
+		addEventListener('keydown', (event) => {
+			const key = event.key.toLowerCase();
+			if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
+			if (key === 'ü' && document.pointerLockElement === host) document.exitPointerLock();
+			pressed.add(key);
+			if (key === 'e' && running) {
+				if (hidden) { hidden = false; player.position.copy(nearbySpot ? new THREE.Vector3(nearbySpot.x, 0, nearbySpot.z - .92) : player.position); say('Du verlässt das Versteck.'); }
+				else if (nearbySpot) { hidden = true; player.visible = false; say('Still sein. Der Geist sucht weiter.'); }
+			}
+		});
+		addEventListener('keyup', (event) => pressed.delete(event.key.toLowerCase()));
+		addEventListener('blur', () => pressed.clear());
+
+		const clock = new THREE.Clock();
+		function update(dt) {
+			if (!running) return;
+			elapsed += dt;
+			const remaining = Math.max(0, 150 - elapsed);
+			ui.timer.textContent = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(Math.floor(remaining % 60)).padStart(2, '0')}`;
+			if (remaining <= 0) { finish(false); return; }
+			const dx = Number(pressed.has('d') || pressed.has('arrowright')) - Number(pressed.has('a') || pressed.has('arrowleft'));
+			const dz = Number(pressed.has('s') || pressed.has('arrowdown')) - Number(pressed.has('w') || pressed.has('arrowup'));
+			const sprinting = !hidden && Boolean(dx || dz) && pressed.has('shift') && stamina > 0;
+			if (sprinting) {
+				stamina = Math.max(0, stamina - dt);
+				staminaRecovery = 0;
+			} else if (stamina < maxStamina) {
+				staminaRecovery += dt;
+				if (staminaRecovery >= 3) { stamina = maxStamina; staminaRecovery = 0; }
+			}
+			ui.staminaValue.textContent = `${stamina.toFixed(1).replace('.', ',')} s`;
+			ui.staminaFill.style.width = `${stamina / maxStamina * 100}%`;
+			ui.staminaFill.classList.toggle('low', stamina < 1.5);
+			if (!hidden && (dx || dz)) {
+				const length = Math.hypot(dx, dz), speed = (sprinting ? 6.2 : 2.55) * dt;
+				const localX = dx / length, localZ = dz / length;
+				const mx = (localX * Math.cos(viewYaw) - localZ * Math.sin(viewYaw)) * speed;
+				const mz = (-localX * Math.sin(viewYaw) - localZ * Math.cos(viewYaw)) * speed;
+				if (!collides(player.position.x + mx, player.position.z)) player.position.x += mx;
+				if (!collides(player.position.x, player.position.z + mz)) player.position.z += mz;
+			}
+			nearbySpot = hideSpots.find((spot) => Math.hypot(player.position.x - spot.x, player.position.z - (spot.z - .6)) < 1.55) || null;
+			ui.prompt.textContent = hidden ? 'E  ·  Versteck verlassen' : nearbySpot ? `E  ·  In ${nearbySpot.name} verstecken` : '';
+			ui.prompt.classList.toggle('visible', Boolean(nearbySpot) || hidden);
+			if (!hidden) {
+				for (let i = 0; i < keyMeshes.length; i++) {
+					if (keyMeshes[i].visible && player.position.distanceTo(new THREE.Vector3(keys[i].x, 0, keys[i].z)) < .85) {
+						keyMeshes[i].visible = false; collected++; ui.keys.textContent = `${collected} / 5`;
+						say('Schlüssel gefunden.');
+						if (collected === 5) ui.objective.textContent = 'Alle Schlüssel! Zum grünen Ausgang im Südosten.';
+					}
+				}
+				if (collected === 5 && Math.hypot(player.position.x - exit.x, player.position.z - exit.z) < 1.1) { finish(true); return; }
+				const distance = ghost.position.distanceTo(player.position);
+				const chaseSpeed = distance < 5 ? 3.1 : 2.85;
+				const direction = new THREE.Vector3(player.position.x - ghost.position.x, 0, player.position.z - ghost.position.z).normalize();
+				ghost.position.x += direction.x * chaseSpeed * dt;
+				ghost.position.z += direction.z * chaseSpeed * dt;
+				if (distance < .9) { caught = true; finish(false); return; }
+			} else {
+				const away = new THREE.Vector3(ghost.position.x - player.position.x, 0, ghost.position.z - player.position.z);
+				if (away.length() < 6) away.normalize().multiplyScalar(1.15 * dt);
+				else away.set(0, 0, 0);
+				ghost.position.add(away);
+			}
+			ghost.position.y = Math.sin(elapsed * 2.3) * .14;
+			ghost.lookAt(player.position.x, ghost.position.y + .8, player.position.z);
+			for (let i = 0; i < keyMeshes.length; i++) if (keyMeshes[i].visible) keyMeshes[i].rotation.y += dt * 1.2;
+			hideSpots.forEach((spot) => { spot.mesh.rotation.y = Math.sin(elapsed * 1.5) * .05; });
+			camera.position.set(player.position.x, 1.08, player.position.z);
+			const pitchScale = Math.cos(viewPitch);
+			camera.lookAt(
+				player.position.x + Math.sin(viewYaw) * pitchScale,
+				1.08 + Math.sin(viewPitch),
+				player.position.z + Math.cos(viewYaw) * pitchScale,
+			);
+		}
+		function frame() { requestAnimationFrame(frame); const dt = Math.min(clock.getDelta(), .04); update(dt); renderer.render(scene, camera); }
+		frame();
+		addEventListener('resize', () => {
+			camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+			renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+		});
+	</script>
+</body>
+</html>
